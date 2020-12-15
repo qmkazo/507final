@@ -1,193 +1,115 @@
-from bs4 import BeautifulSoup
-import requests
-from requests_html import HTMLSession
-import json
-import secrets 
+import instances
+import my_plotly
+import webbrowser
+import my_SQL
 
-CACHE_FILENAME="final.json"
-cache_dict={}
-
-def save_cache(cache_dict):
- 
-    dumped_json_cache = json.dumps(cache_dict)
-    fw = open(CACHE_FILENAME,"w")
-    fw.write(dumped_json_cache)
-    fw.close() 
-
-def open_cache():
-
-    try:
-        cache_file = open(CACHE_FILENAME, 'r')
-        cache_contents = cache_file.read()
-        cache_dict = json.loads(cache_contents)
-        cache_file.close()
-    except:
-        cache_dict = {}
-    return cache_dict
-
-
-class College:
-
-
-    def __init__(self, rank='', name='', address='', zipcode='', phone='', url='', state=''):
-        self.rank=rank
-        self.name=name
-        self.address=address
-        self.zipcode=zipcode
-        self.phone=phone
-        self.url=url
-        self.state=state
-
-    def info(self):
-        return f"#{self.rank} {self.name} : {self.address} {self.zipcode}"
-   
-
-
-def build_state_url_dict():
+if __name__ == "__main__":
+    state = input('Enter a state name (e.g. Michigan, michigan) or "exit"\n:').lower()
+    state_dict = instances.build_state_url_dict()
     
-
-    cache_dict = open_cache()
-    if 'state_url_dict' not in cache_dict.keys():
-        html=requests.get('https://www.nps.gov/index.htm')
-        soup=BeautifulSoup(html.text,'html.parser')
-        a= soup.find('ul', class_="dropdown-menu SearchBar-keywordSearch")
-        list_1 = a.find_all('a')
-        dict_1={}
-        for state in list_1:
-            dict_1[state.text.lower()] = 'https://www.nps.gov' + state.attrs['href']
+    my_SQL.build_state_table()
+    my_SQL.build_college_table()
         
-        cache_dict['state_url_dict']=dict_1
-        save_cache(cache_dict)
-        return dict_1
-
-    else:
-        return cache_dict['state_url_dict']
+    jud=True
     
-
-     
-
-def get_site_instance(site_url):
-
-    cache_dict = open_cache()
-    
-    if site_url in cache_dict.keys():
-        print('using chache')
-        name=cache_dict[site_url]['name']
-        rank=cache_dict[site_url]['rank']
-        address=cache_dict[site_url]['address']
-        zipcode=cache_dict[site_url]['zipcode']
-        phone=cache_dict[site_url]['phone']
+    while jud:
         
-        return College(rank,name,address,zipcode,phone)
-
-    else:
-        print('fetching')
-        session = HTMLSession()
-        html=session.get(site_url)
-        soup=BeautifulSoup(html.text,'html.parser')
-
-        name = soup.find('div', class_="Villain__TitleContainer-sc-1y12ps5-6 IeWTZ").find('h1').text
-        rank = soup.findsoup.find('span', class_="ProfileHeading__RankingSpan-esdqt6-3 kzzvUV").text
+        if state == 'exit':
+            exit()
         
-        try:
-            address=soup.find('p', class_="Paragraph-sc-1iyax29-0 fOjiwz Hide-kg09cx-0 eEcEPJ").text
-
-        except:
-            address=''
-
-        try:
-            fzipcode = soup.find('p', class_="adr").find_all('span')[1].find_all('span')[2].text
-            zipcode = fzipcode.replace(' ','')
-        except:
-            zipcode=''
-        
-        try:
-            fphone = soup.find('div', class_="vcard").find_all('p')[1].find('span').text
-            phone = fphone.replace('\n','')
-        except:
-            phone=''
-
-        cache_dict[site_url]={'name':name,'category':category,'address':address,'zipcode':zipcode,'phone':phone}
-        save_cache(cache_dict)
-        
-        
-        return College(rank,name,address,zipcode,phone)
-
-
-def get_sites_for_state(state_url):
-  
-    html = requests.get(state_url)
-    soup_2=BeautifulSoup(html.text,'html.parser')
-    
-    a1 = soup_2.find_all('li', class_="clearfix")
-
-    url_list=[]
-
-    for parks in a1:
-        cols=parks.find_all('h3')
-        if cols==[]: 
-            continue
-        for i in cols:
-            url_list.append()
-    
-    instance_list=[]
-    for urls in url_list:
-        instance_list.append(get_site_instance(urls))
-    
-    return instance_list
-
-
-    session = HTMLSession()
-    html=session.get('https://www.usnews.com/best-colleges/az')
-    soup=BeautifulSoup(html.text,'html.parser')
-    a = soup.find_all('a', class_="Anchor-byh49a-0 DetailCardColleges__StyledAnchor-cecerc-7 cmivCu card-name")
-    b={}
-    for items in a:
-        b[items.text]=f'https://www.usnews.com{items.attrs["href"]}'
-    
-    print(b)
-
-    c=list(b.items())
-
-    def insert_2(item):
-        connection = sqlite3.connect("finaldatabase.sqlite")
-        cursor = connection.cursor()
-        cursor.execute(f"insert into college(name,url,state) values('{item[0]}','{item[1]}','az')")
-        connection.commit()
-        connection.close()
-
-    for items in c:
-        insert_2(items)
+        elif state not in state_dict.keys():
+            print('[Error] Enter proper state name')
+            print('\n----------------------------------')
+            state = input('Enter a state name (e.g. Michigan, michigan) or "exit"\n:').lower()
+            jud=True
 
         
+        elif state in state_dict.keys():
+            my_SQL.insert_college(state)
+            instance_list = instances.get_sites_for_state(state_dict[state])
+            print('----------------------------------')
+            print(f'List of colleges in {state}')
+            print('----------------------------------')
+
+            for i in range(0,len(instance_list)):
+                if i != '':
+                    print('[' + str(i+1) +'] '+instance_list[i].info())
+                else:
+                    pass
+            jud=False
+            
+            
+            further_search = input('''\nYou can check "tuition" ,"enrollment" or "deatils". \nYou can also choose the number for detail search or "exit" or "back" :\n''').lower()
+            jud_2=True
+            
+            while jud_2:
+                
+                if further_search == 'exit':
+                    exit()
+                elif further_search == 'back':
+                    state = input('\nEnter a state name (e.g. Michigan, michigan) or "exit"\n:').lower()
+                    jud_2=False
+                    jud=True
+                elif further_search=='':
+                    print('[Error] Invalid input')
+                    print('\n----------------------------------')
+                    further_search = input('\nYou can check "tuition" ,"enrollment" or "deatils". \nYou can also choose the number for detail search or "exit" or "back" :\n').lower()
+                    jud_2 = True   
+
+                elif further_search == 'tuition':  
+                    my_plotly.compare_tuition(state_dict[state],state.capitalize())
+                    further_search = input('\nYou can check "tuition" ,"enrollment" or "deatils". \nYou can also choose the number for detail search or "exit" or "back" :\n').lower()
+                    jud_2 = True
+
+                elif further_search == 'details':  
+                    my_plotly.show_college_info(state_dict[state],state.capitalize())
+                    further_search = input('\nYou can check "tuition" ,"enrollment" or "deatils". \nYou can also choose the number for detail search or "exit" or "back" :\n').lower()
+                    jud_2 = True
+
+                elif further_search == 'enrollment' :
+                    my_plotly.compare_enrollment(state_dict[state],state.capitalize())
+                    further_search = input('\nYou can check "tuition" ,"enrollment" or "deatils". \nYou can also choose the number for detail search or "exit" or "back" :\n').lower()
+                    jud_2 = True
+                
+                elif further_search.isnumeric()==True and int(further_search) >= 1 and int(further_search) <= len(instance_list):
+                    
+                    college_instance=instance_list[int(further_search)-1]
+                    print(f'\nYou choose {college_instance.name}.')
 
 
-def get_nearby_places(site_object):
-    '''Obtain API data from MapQuest API.
-    
-    Parameters
-    ----------
-    site_object: object
-        an instance of a national site
-    
-    Returns
-    -------
-    dict
-        a converted API return from MapQuest API
-    '''
-    cache_dict = open_cache()
-    if site_object.name in cache_dict.keys():
-        print('using cache')
-        return cache_dict[site_object.name]
-    else:
-        print('fetching')
-        key = secrets.API_KEY
-        origin = site_object.zipcode
-        
-        response = requests.get(f'https://www.mapquestapi.com/search/v2/radius?origin={origin}&radius=10&maxMatches=10&ambiguities=ignore&outFormat=json&key={key}')
-        f=json.loads(response.text)
-        cache_dict[site_object.name]=f
-        save_cache(cache_dict)
-        return f
-    
+                    input_3=input('Do you want to look at this college in browser? Y/N\n').lower()
 
+                    if input_3=='y':
+                        webbrowser.open(college_instance.url)
+                    elif input_3=='n':
+                        pass
+                    else:
+                        print('[Error] Invalid input, back to college list.')
+                        print('\n----------------------------------')
+
+
+                    
+                    input_4=input('Do you want to search this college in map and find near places? Y/N\n').lower()
+
+                    if input_4=='y':
+                        my_plotly.show_map_info(college_instance)
+                        webbrowser.open(f'https://www.mapquest.com/search/results?query={college_instance.city}')
+                                        
+                    
+                    elif input_3=='n':
+                        pass
+                    else:
+                        print('[Error] Invalid input, back to college list.')
+                        print('\n----------------------------------')
+
+                                        
+                    
+                    further_search = input('Choose the number for detail search or "exit" or "back"\n:').lower()
+                    jud_2 = True    
+                    
+                
+                else:
+                    print('[Error] Invalid input')
+                    print('\n----------------------------------')
+                    further_search = input('\nYou can check "tuition" ,"enrollment" or "deatils". \nYou can also choose the number for detail search or "exit" or "back" :\n').lower()
+                    jud_2 = True
